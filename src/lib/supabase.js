@@ -203,3 +203,14 @@ export const INDIVIDUAL_METRICS = [
   'fouls_per_90'
 ]
 
+// Funções necessárias para o Report Builder
+export const db = {
+  // ... funções existentes ...
+  
+  // Novas funções necessárias:
+  getPlayerById: async (playerId) => { /* implementar */ },
+  getPlayersWithTeams: async () => { /* implementar */ },
+  getPlayerMetrics: async (playerId, season) => { /* implementar */ },
+  getPlayerMentalNuclei: async (playerId, season) => { /* implementar */ },
+  getPositionBenchmarks: async (metric, season) => { /* implementar */ }
+}
