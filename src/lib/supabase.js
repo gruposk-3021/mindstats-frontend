@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Configurações do Supabase
-// IMPORTANTE: Substitua pelas suas credenciais reais
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
 
@@ -9,105 +8,134 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Funções utilitárias para o banco de dados
 export const db = {
-  // Buscar todos os jogadores com informações de time e liga
+  // Buscar todos os jogadores (versão simplificada que funciona)
   async getPlayers(filters = {}) {
     try {
-      let query = supabase
+      console.log('Buscando jogadores com filtros:', filters)
+      
+      // Primeiro, buscar jogadores básicos
+      let playersQuery = supabase
         .from('players')
-        .select(`
-          id,
-          name,
-          position,
-          nationality,
-          date_of_birth,
-          player_team_seasons!inner (
-            season,
-            jersey_number,
-            teams!inner (
-              id,
-              name,
-              short_name,
-              city,
-              leagues!inner (
-                id,
-                name,
-                country,
-                season
-              )
-            )
-          )
-        `)
+        .select('id, name, position, nationality, date_of_birth')
         .eq('is_active', true)
       
-      // Aplicar filtros se fornecidos
-      if (filters.league) {
-        query = query.eq('player_team_seasons.teams.leagues.name', filters.league)
-      }
-      
       if (filters.position) {
-        query = query.eq('position', filters.position)
+        playersQuery = playersQuery.eq('position', filters.position)
       }
       
-      if (filters.season) {
-        query = query.eq('player_team_seasons.season', filters.season)
-      } else {
-        // Padrão para temporada atual
-        query = query.eq('player_team_seasons.season', '2023/24')
+      const { data: playersData, error: playersError } = await playersQuery.order('name')
+      
+      if (playersError) {
+        console.error('Erro ao buscar jogadores:', playersError)
+        throw playersError
       }
       
-      const { data, error } = await query.order('name')
+      console.log('Jogadores encontrados:', playersData?.length || 0)
       
-      if (error) {
-        console.error('Erro ao buscar jogadores:', error)
-        throw error
+      if (!playersData || playersData.length === 0) {
+        return []
       }
       
-      // Transformar os dados para um formato mais simples
-      const players = data?.map(player => ({
-        id: player.id,
-        name: player.name,
-        position: player.position,
-        nationality: player.nationality,
-        date_of_birth: player.date_of_birth,
-        team_name: player.player_team_seasons[0]?.teams?.name || 'N/A',
-        team_short_name: player.player_team_seasons[0]?.teams?.short_name || 'N/A',
-        league_name: player.player_team_seasons[0]?.teams?.leagues?.name || 'N/A',
-        league_country: player.player_team_seasons[0]?.teams?.leagues?.country || 'N/A',
-        season: player.player_team_seasons[0]?.season || '2023/24',
-        jersey_number: player.player_team_seasons[0]?.jersey_number || null
-      })) || []
+      // Para cada jogador, buscar informações de time e liga
+      const playersWithTeams = await Promise.all(
+        playersData.map(async (player) => {
+          try {
+            // Buscar temporada do jogador
+            const { data: seasonData } = await supabase
+              .from('player_team_seasons')
+              .select(`
+                season,
+                jersey_number,
+                team_id,
+                league_id
+              `)
+              .eq('player_id', player.id)
+              .eq('season', filters.season || '2023/24')
+              .eq('is_active', true)
+              .single()
+            
+            let teamName = 'N/A'
+            let leagueName = 'N/A'
+            
+            if (seasonData) {
+              // Buscar nome do time
+              const { data: teamData } = await supabase
+                .from('teams')
+                .select('name, short_name')
+                .eq('id', seasonData.team_id)
+                .single()
+              
+              if (teamData) {
+                teamName = teamData.name
+              }
+              
+              // Buscar nome da liga
+              const { data: leagueData } = await supabase
+                .from('leagues')
+                .select('name, country')
+                .eq('id', seasonData.league_id)
+                .single()
+              
+              if (leagueData) {
+                leagueName = leagueData.name
+              }
+            }
+            
+            return {
+              id: player.id,
+              name: player.name,
+              position: player.position,
+              nationality: player.nationality,
+              date_of_birth: player.date_of_birth,
+              team_name: teamName,
+              league_name: leagueName,
+              season: seasonData?.season || filters.season || '2023/24',
+              jersey_number: seasonData?.jersey_number || null
+            }
+          } catch (error) {
+            console.error(`Erro ao buscar dados do jogador ${player.name}:`, error)
+            return {
+              id: player.id,
+              name: player.name,
+              position: player.position,
+              nationality: player.nationality,
+              date_of_birth: player.date_of_birth,
+              team_name: 'N/A',
+              league_name: 'N/A',
+              season: filters.season || '2023/24',
+              jersey_number: null
+            }
+          }
+        })
+      )
       
-      return players
+      // Aplicar filtros de liga se necessário
+      let filteredPlayers = playersWithTeams
+      
+      if (filters.league) {
+        filteredPlayers = playersWithTeams.filter(player => 
+          player.league_name === filters.league
+        )
+      }
+      
+      console.log('Jogadores após filtros:', filteredPlayers.length)
+      return filteredPlayers
+      
     } catch (error) {
       console.error('Erro na função getPlayers:', error)
       return []
     }
   },
 
-  // Buscar jogadores com informações de time (versão simplificada)
-  async getPlayersWithTeams() {
+  // Buscar jogadores de forma mais simples (fallback)
+  async getPlayersSimple() {
     try {
       const { data, error } = await supabase
         .from('players')
-        .select(`
-          id,
-          name,
-          position,
-          nationality,
-          player_team_seasons!inner (
-            season,
-            teams!inner (
-              name,
-              leagues!inner (
-                name,
-                country
-              )
-            )
-          )
-        `)
+        .select('id, name, position, nationality')
         .eq('is_active', true)
-        .eq('player_team_seasons.season', '2023/24')
         .order('name')
+        .limit(50)
       
       if (error) throw error
       
@@ -116,57 +144,13 @@ export const db = {
         name: player.name,
         position: player.position,
         nationality: player.nationality,
-        team_name: player.player_team_seasons[0]?.teams?.name || 'N/A',
-        league_name: player.player_team_seasons[0]?.teams?.leagues?.name || 'N/A'
+        team_name: 'N/A',
+        league_name: 'N/A',
+        season: '2023/24'
       })) || []
     } catch (error) {
-      console.error('Erro ao buscar jogadores com times:', error)
+      console.error('Erro ao buscar jogadores simples:', error)
       return []
-    }
-  },
-
-  // Buscar jogador específico por ID
-  async getPlayerById(playerId) {
-    try {
-      const { data, error } = await supabase
-        .from('players')
-        .select(`
-          id,
-          name,
-          position,
-          nationality,
-          date_of_birth,
-          player_team_seasons!inner (
-            season,
-            jersey_number,
-            teams!inner (
-              name,
-              short_name,
-              leagues!inner (
-                name,
-                country
-              )
-            )
-          )
-        `)
-        .eq('id', playerId)
-        .eq('is_active', true)
-        .single()
-      
-      if (error) throw error
-      
-      return {
-        id: data.id,
-        name: data.name,
-        position: data.position,
-        nationality: data.nationality,
-        date_of_birth: data.date_of_birth,
-        team_name: data.player_team_seasons[0]?.teams?.name || 'N/A',
-        league_name: data.player_team_seasons[0]?.teams?.leagues?.name || 'N/A'
-      }
-    } catch (error) {
-      console.error('Erro ao buscar jogador:', error)
-      return null
     }
   },
 
@@ -178,26 +162,38 @@ export const db = {
         .select(`
           value,
           percentile,
-          individual_metrics_definitions!inner (
-            code,
-            name,
-            description,
-            unit
-          )
+          metric_id
         `)
         .eq('player_id', playerId)
         .eq('season', season)
       
       if (error) throw error
       
-      return data?.map(metric => ({
-        metric_code: metric.individual_metrics_definitions.code,
-        metric_name: metric.individual_metrics_definitions.name,
-        description: metric.individual_metrics_definitions.description,
-        unit: metric.individual_metrics_definitions.unit,
-        value: metric.value,
-        percentile: metric.percentile
-      })) || []
+      if (!data || data.length === 0) {
+        return []
+      }
+      
+      // Buscar definições das métricas
+      const metricsWithDefinitions = await Promise.all(
+        data.map(async (metric) => {
+          const { data: definition } = await supabase
+            .from('individual_metrics_definitions')
+            .select('code, name, description, unit')
+            .eq('id', metric.metric_id)
+            .single()
+          
+          return {
+            metric_code: definition?.code || 'unknown',
+            metric_name: definition?.name || 'Unknown Metric',
+            description: definition?.description || '',
+            unit: definition?.unit || '%',
+            value: metric.value,
+            percentile: metric.percentile
+          }
+        })
+      )
+      
+      return metricsWithDefinitions
     } catch (error) {
       console.error('Erro ao buscar métricas do jogador:', error)
       return []
@@ -212,24 +208,37 @@ export const db = {
         .select(`
           value,
           percentile,
-          mental_nuclei_definitions!inner (
-            code,
-            name,
-            description
-          )
+          nucleus_id
         `)
         .eq('player_id', playerId)
         .eq('season', season)
       
       if (error) throw error
       
-      return data?.map(nucleus => ({
-        nucleus_code: nucleus.mental_nuclei_definitions.code,
-        nucleus_name: nucleus.mental_nuclei_definitions.name,
-        description: nucleus.mental_nuclei_definitions.description,
-        value: nucleus.value,
-        percentile: nucleus.percentile
-      })) || []
+      if (!data || data.length === 0) {
+        return []
+      }
+      
+      // Buscar definições dos núcleos
+      const nucleiWithDefinitions = await Promise.all(
+        data.map(async (nucleus) => {
+          const { data: definition } = await supabase
+            .from('mental_nuclei_definitions')
+            .select('code, name, description')
+            .eq('id', nucleus.nucleus_id)
+            .single()
+          
+          return {
+            nucleus_code: definition?.code || 'unknown',
+            nucleus_name: definition?.name || 'Unknown Nucleus',
+            description: definition?.description || '',
+            value: nucleus.value,
+            percentile: nucleus.percentile
+          }
+        })
+      )
+      
+      return nucleiWithDefinitions
     } catch (error) {
       console.error('Erro ao buscar núcleos mentais do jogador:', error)
       return []
@@ -253,53 +262,31 @@ export const db = {
     }
   },
 
-  // Buscar times disponíveis
-  async getTeams() {
+  // Buscar ligas únicas (sem duplicatas por temporada)
+  async getUniqueLeagues() {
     try {
       const { data, error } = await supabase
-        .from('teams')
-        .select(`
-          id,
-          name,
-          short_name,
-          city,
-          leagues!inner (
-            name,
-            country
-          )
-        `)
+        .from('leagues')
+        .select('name, country')
         .eq('is_active', true)
-        .order('name')
       
       if (error) throw error
       
-      return data?.map(team => ({
-        id: team.id,
-        name: team.name,
-        short_name: team.short_name,
-        city: team.city,
-        league_name: team.leagues.name,
-        league_country: team.leagues.country
-      })) || []
-    } catch (error) {
-      console.error('Erro ao buscar times:', error)
-      return []
-    }
-  },
-
-  // Buscar definições dos núcleos mentais
-  async getMentalNucleiDefinitions() {
-    try {
-      const { data, error } = await supabase
-        .from('mental_nuclei_definitions')
-        .select('*')
-        .eq('is_active', true)
-        .order('name')
+      // Remover duplicatas
+      const uniqueLeagues = []
+      const seen = new Set()
       
-      if (error) throw error
-      return data || []
+      data?.forEach(league => {
+        const key = `${league.name}-${league.country}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          uniqueLeagues.push(league)
+        }
+      })
+      
+      return uniqueLeagues.sort((a, b) => a.name.localeCompare(b.name))
     } catch (error) {
-      console.error('Erro ao buscar definições dos núcleos mentais:', error)
+      console.error('Erro ao buscar ligas únicas:', error)
       return []
     }
   },
@@ -321,20 +308,19 @@ export const db = {
     }
   },
 
-  // Buscar benchmarks por posição
-  async getPositionBenchmarks(metric, season = '2023/24') {
+  // Buscar definições dos núcleos mentais
+  async getMentalNucleiDefinitions() {
     try {
       const { data, error } = await supabase
-        .from('position_benchmarks')
+        .from('mental_nuclei_definitions')
         .select('*')
-        .eq('metric_id', metric)
-        .eq('season', season)
-        .eq('metric_type', 'individual')
+        .eq('is_active', true)
+        .order('name')
       
       if (error) throw error
       return data || []
     } catch (error) {
-      console.error('Erro ao buscar benchmarks por posição:', error)
+      console.error('Erro ao buscar definições dos núcleos mentais:', error)
       return []
     }
   },
@@ -348,7 +334,7 @@ export const db = {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true)
 
-      // Total de ligas únicas (sem duplicatas por temporada)
+      // Total de ligas únicas
       const { data: leaguesData } = await supabase
         .from('leagues')
         .select('name, country')
@@ -385,113 +371,24 @@ export const db = {
     }
   },
 
-  // Buscar top performers (simulado com base nas métricas)
-  async getTopPerformers(limit = 10) {
+  // Função de teste para verificar conectividade
+  async testConnection() {
     try {
-      // Buscar jogadores com suas métricas médias
       const { data, error } = await supabase
-        .from('player_individual_metrics')
-        .select(`
-          player_id,
-          value,
-          players!inner (
-            name,
-            position,
-            player_team_seasons!inner (
-              teams!inner (
-                name,
-                leagues!inner (
-                  name
-                )
-              )
-            )
-          )
-        `)
-        .eq('season', '2023/24')
-        .limit(limit * 10) // Buscar mais dados para calcular médias
+        .from('players')
+        .select('count')
+        .limit(1)
       
-      if (error) throw error
-      
-      // Agrupar por jogador e calcular média
-      const playerStats = {}
-      data?.forEach(metric => {
-        const playerId = metric.player_id
-        if (!playerStats[playerId]) {
-          playerStats[playerId] = {
-            id: playerId,
-            name: metric.players.name,
-            position: metric.players.position,
-            team_name: metric.players.player_team_seasons[0]?.teams?.name || 'N/A',
-            league_name: metric.players.player_team_seasons[0]?.teams?.leagues?.name || 'N/A',
-            values: [],
-            overall_mental_score: 0
-          }
-        }
-        playerStats[playerId].values.push(metric.value)
-      })
-      
-      // Calcular médias e ordenar
-      const topPerformers = Object.values(playerStats)
-        .map(player => ({
-          ...player,
-          overall_mental_score: player.values.reduce((sum, val) => sum + val, 0) / player.values.length
-        }))
-        .sort((a, b) => b.overall_mental_score - a.overall_mental_score)
-        .slice(0, limit)
-      
-      return topPerformers
-    } catch (error) {
-      console.error('Erro ao buscar top performers:', error)
-      return []
-    }
-  },
-
-  // Buscar dados para visualizações
-  async getVisualizationData(metric, position = null, league = null) {
-    try {
-      let query = supabase
-        .from('player_individual_metrics')
-        .select(`
-          value,
-          players!inner (
-            name,
-            position,
-            player_team_seasons!inner (
-              teams!inner (
-                leagues!inner (
-                  name
-                )
-              )
-            )
-          ),
-          individual_metrics_definitions!inner (
-            code
-          )
-        `)
-        .eq('individual_metrics_definitions.code', metric)
-        .eq('season', '2023/24')
-      
-      if (position) {
-        query = query.eq('players.position', position)
+      if (error) {
+        console.error('Erro de conexão:', error)
+        return false
       }
       
-      if (league) {
-        query = query.eq('players.player_team_seasons.teams.leagues.name', league)
-      }
-      
-      const { data, error } = await query.order('value', { ascending: false })
-      
-      if (error) throw error
-      
-      return data?.map(item => ({
-        name: item.players.name,
-        position: item.players.position,
-        league_name: item.players.player_team_seasons[0]?.teams?.leagues?.name || 'N/A',
-        [metric]: item.value
-      })) || []
+      console.log('Conexão com Supabase OK')
+      return true
     } catch (error) {
-      console.error('Erro ao buscar dados de visualização:', error)
-      return []
+      console.error('Erro ao testar conexão:', error)
+      return false
     }
   }
 }
