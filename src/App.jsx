@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Brain, BarChart3, Users, Target } from 'lucide-react'
+import { Brain, BarChart3, Users, Target, FileText } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import PlayerAnalysis from './components/PlayerAnalysis'
 import Visualizations from './components/Visualizations'
 import MetricsCatalog from './components/MetricsCatalog'
+import ReportBuilder from './components/ReportBuilder'
 import { db } from './lib/supabase'
 
 function App() {
@@ -46,6 +47,12 @@ function App() {
       name: 'Player Analysis',
       icon: Users,
       component: PlayerAnalysis
+    },
+    {
+      id: 'reports',
+      name: 'Report Builder',
+      icon: FileText,
+      component: ReportBuilder
     },
     {
       id: 'visualizations',
@@ -116,6 +123,7 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon`}
             <div className="logo">
               <Brain className="inline-block mr-2" size={24} />
               MindStats
+              <span className="version-badge">v2.0</span>
             </div>
             
             <nav className="nav-tabs">
@@ -129,6 +137,9 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon`}
                   >
                     <Icon size={16} />
                     {tab.name}
+                    {tab.id === 'reports' && (
+                      <span className="new-badge">NEW</span>
+                    )}
                   </button>
                 )
               })}
@@ -160,6 +171,9 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon`}
         </p>
         <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
           Powered by StatsBomb, SkillCorner & Wyscout data via Kloppy
+        </p>
+        <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.7 }}>
+          v2.0 - Now with Interactive Report Builder & Advanced Comparisons
         </p>
       </footer>
     </div>
