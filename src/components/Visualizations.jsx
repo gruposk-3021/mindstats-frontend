@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart3, Scatter, Filter, TrendingUp } from 'lucide-react'
+import { BarChart3, Zap, Filter, TrendingUp } from 'lucide-react'
 import { db, POSITIONS, INDIVIDUAL_METRICS } from '../lib/supabase'
 import BeeswarmChart from './BeeswarmChart'
 import HeatmapChart from './HeatmapChart'
@@ -176,7 +176,7 @@ const Visualizations = () => {
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">
-              <Scatter size={20} style={{ display: 'inline', marginRight: '0.5rem' }} />
+              <Zap size={20} style={{ display: 'inline', marginRight: '0.5rem' }} />
               Beeswarm Plot
             </h2>
             <p className="card-description">
