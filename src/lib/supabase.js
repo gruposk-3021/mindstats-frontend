@@ -6,6 +6,19 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+
+// Funções necessárias para o Report Builder
+export const db = {
+  // ... funções existentes ...
+  
+  // Novas funções necessárias:
+  getPlayerById: async (playerId) => { /* implementar */ },
+  getPlayersWithTeams: async () => { /* implementar */ },
+  getPlayerMetrics: async (playerId, season) => { /* implementar */ },
+  getPlayerMentalNuclei: async (playerId, season) => { /* implementar */ },
+  getPositionBenchmarks: async (metric, season) => { /* implementar */ }
+}
+
 // Funções utilitárias para o banco de dados
 export const db = {
   // Buscar todos os jogadores (versão simplificada que funciona)
