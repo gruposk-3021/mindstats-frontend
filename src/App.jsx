@@ -7,26 +7,7 @@ import MetricsCatalog from './components/MetricsCatalog'
 import ReportBuilder from './components/ReportBuilder'
 import { db } from './lib/supabase'
 
-/* Importar estilos do Report Builder */
-@import './styles/report-builder.css';
 
-/* Correções globais para valores numéricos */
-.numeric-value {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Melhorias de acessibilidade */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
