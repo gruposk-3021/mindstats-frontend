@@ -7,8 +7,6 @@ import MetricsCatalog from './components/MetricsCatalog'
 import ReportBuilder from './components/ReportBuilder'
 import { db } from './lib/supabase'
 
-
-
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [loading, setLoading] = useState(true)
