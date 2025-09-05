@@ -353,3 +353,4 @@ const MetricSelector = ({ selectedMetrics, onMetricToggle, maxMetrics = 10 }) =>
 
 export default MetricSelector
 
+ 
