@@ -477,3 +477,4 @@ const ComparisonView = ({ players, metrics, comparisonType, includeNuclei }) => 
 
 export default ComparisonView
 
+ 
